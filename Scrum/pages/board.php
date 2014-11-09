@@ -13,6 +13,7 @@ $resolved_threshold = config_get( 'bug_resolved_status_threshold' );
 
 $bug_table = db_get_table( 'mantis_bug_table' );
 $version_table = db_get_table( 'mantis_project_version_table' );
+$tag_table = db_get_table( 'mantis_bug_tag_table' );
 
 # Fetch list of target versions in use for the given projects
 $query = "SELECT DISTINCT v.date_order, v.version, b.target_version
@@ -121,23 +122,54 @@ token_set(
 	plugin_config_get( 'token_expiry' )
 );
 
-# Retrieve all bugs with the matching target version
+# Get selected Tag
+$tag = -1;
+$tags_by_project = array();
+$token_tags_by_project = token_get_value( ScrumPlugin::TOKEN_SCRUM_TAG );
+
+if( !is_null( $token_tags_by_project ) ) {
+	$tags_by_project = unserialize( $token_tags_by_project );
+}
+
+if( gpc_isset( 'tag' ) ) {
+	$tag = gpc_get_string( 'tag', '' );
+} else {
+	if( array_key_exists( $current_project, $tags_by_project ) ) {
+		$tag = $tags_by_project[$current_project];
+	}
+}
+
+$tags_by_project[$current_project] = $tag;
+token_set(
+	ScrumPlugin::TOKEN_SCRUM_TAG,
+	serialize( $tags_by_project ),
+	plugin_config_get( 'token_expiry' )
+);
+
+# Retrieve all bugs with the matching target version, categories and tag
 $params = array();
-$query = "SELECT id FROM {$bug_table}
-	WHERE project_id IN (" . join( ', ', $project_ids ) . ')
+$query = "SELECT id FROM {$bug_table} b ";
+
+if( $tag > 0 ) {
+	$query .= "JOIN {$tag_table} t ON t.bug_id=b.id AND t.tag_id=" . db_param();
+	$params[] = $tag;
+}
+
+#TODO check sql inject
+$query .= 'WHERE project_id IN (' . join( ', ', $project_ids ) . ')
 	AND status IN (' . join( ', ', $statuses ) . ')';
 
 if( $target_version ) {
-	$query .= " AND target_version=" . db_param();
+	$query .= ' AND b.target_version=' . db_param();
 	$params[] = $target_version;
 }
+
 if( $category_name ) {
-	$query .= " AND category_id IN (" . join( ', ', $category_ids ) . ")";
+	$query .= ' AND category_id IN (' . join( ', ', $category_ids ) . ')';
 }
 
 $query .= ' ORDER BY status ASC, priority DESC, id DESC';
-$result = db_query_bound($query, $params);
-
+$result = db_query_bound( $query, $params );
 $bug_ids = array();
 while( $row = db_fetch_array( $result ) ) {
 	$bug_ids[] = $row['id'];
@@ -252,8 +284,29 @@ html_page_top( plugin_lang_get( 'board' ) );
 					<?php endforeach ?>
 				</select>
 
+				<select>
+					<?php print_tag_option_list( 0, $tag ); ?>
+				</select>
+
 				<input type="submit" value="Go" />
 			</form>
+		</td>
+
+		<td class="right">
+
+<?php
+	$t_can_manage = access_has_global_level( config_get( 'manage_plugin_threshold' ) );
+	if ( $t_can_manage ) {
+?>
+			<span class="bracket-link"><?php
+				print_bracket_link(
+					plugin_page( 'config_page' ),
+					plugin_lang_get( 'configuration' )
+				);
+			?></span>
+<?php
+	}
+?>
 		</td>
 	</tr>
 
@@ -293,7 +346,7 @@ html_page_top( plugin_lang_get( 'board' ) );
 	</tr>
 
 	<tr class="row-1">
-	
+
 <?php
 	$status_enum = config_get( 'status_enum_string' );
 	$first = true;
