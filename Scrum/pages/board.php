@@ -79,6 +79,27 @@ if( gpc_isset( 'clear_filter' ) ) {
 		}
 	}
 
+	# Get selected Tag
+	$tags_by_project = array();
+	$token_tags_by_project = token_get_value( ScrumPlugin::TOKEN_SCRUM_TAG );
+
+	if( !is_null( $token_tags_by_project ) ) {
+		$tags_by_project = unserialize( $token_tags_by_project );
+	}
+
+	if( gpc_isset( 'tag' ) ) {
+		$tag = gpc_get_string( 'tag', '' );
+	} else {
+		var_dump($current_project, $tags_by_project);
+		if( array_key_exists( $current_project, $tags_by_project ) ) {
+			$tag = $tags_by_project[$current_project];
+		} else {
+			$tag = -1;
+		}
+	}
+	if( $tag > 0 && !tag_exists( $tag ) ) {
+		$tag = 0;
+	}
 }
 
 # Fetch list of categories in use for the given projects
@@ -128,23 +149,6 @@ token_set(
 	serialize( $categories_by_project),
 	plugin_config_get( 'token_expiry' )
 );
-
-# Get selected Tag
-$tag = -1;
-$tags_by_project = array();
-$token_tags_by_project = token_get_value( ScrumPlugin::TOKEN_SCRUM_TAG );
-
-if( !is_null( $token_tags_by_project ) ) {
-	$tags_by_project = unserialize( $token_tags_by_project );
-}
-
-if( gpc_isset( 'tag' ) ) {
-	$tag = gpc_get_string( 'tag', '' );
-} else {
-	if( array_key_exists( $current_project, $tags_by_project ) ) {
-		$tag = $tags_by_project[$current_project];
-	}
-}
 
 $tags_by_project[$current_project] = $tag;
 token_set(
