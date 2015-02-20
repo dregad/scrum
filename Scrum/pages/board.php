@@ -291,8 +291,21 @@ html_page_top( plugin_lang_get( 'board' ) );
 					<?php endforeach ?>
 				</select>
 
-				<select>
-					<?php print_tag_option_list( 0, $tag ); ?>
+				<select name="tag">
+<?php
+	# Basically duplicating code from print_tag_option_list() plus current tag selection
+	# Ideally this should be print_tag_option_list( 0, $tag ) but that requires a change
+	# in MantisBT API.
+
+	echo '<option value="0">' . string_html_specialchars( lang_get( 'tag_existing' ) ) . '</option>' . PHP_EOL;
+	foreach ( tag_get_candidates_for_bug( 0 ) as $row ) {
+		$t_string = !empty( $row['description'] ) ? $row['description'] : '';
+		echo '<option value="' . $row['id'] . '" '
+			. 'title="' . string_html_specialchars( $t_string ) . '" ';
+		check_selected( $row['id'], $tag );
+		echo '>' . string_html_specialchars( $row['name'] ) . '</option>' . PHP_EOL;
+	}
+?>
 				</select>
 
 				<input type="submit" value="<?php echo lang_get( 'filter_button' ); ?>"/>
